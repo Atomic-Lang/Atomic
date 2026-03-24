@@ -1,0 +1,244 @@
+# calculator.at
+# Desktop calculator with HTML interface using the Clark library
+
+import clark
+import time
+
+html = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Calculator</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      height: 100vh;
+      background: #1c1c1e;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .calc {
+      width: 100%;
+      max-width: 320px;
+      padding: 20px;
+    }
+    .display {
+      background: #2c2c2e;
+      border-radius: 16px;
+      padding: 20px 24px;
+      margin-bottom: 16px;
+      text-align: right;
+      min-height: 100px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
+    .expression {
+      color: rgba(255,255,255,0.4);
+      font-size: 16px;
+      min-height: 24px;
+      word-break: break-all;
+    }
+    .result {
+      color: #fff;
+      font-size: 42px;
+      font-weight: 300;
+      word-break: break-all;
+      transition: font-size 0.15s;
+    }
+    .result.small { font-size: 28px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .btn {
+      height: 62px;
+      border: none;
+      border-radius: 14px;
+      font-size: 22px;
+      font-weight: 400;
+      cursor: pointer;
+      transition: transform 0.1s, background 0.15s;
+      outline: none;
+    }
+    .btn:active { transform: scale(0.93); }
+    .num {
+      background: #3a3a3c;
+      color: #fff;
+    }
+    .num:hover { background: #48484a; }
+    .op {
+      background: #ff9f0a;
+      color: #fff;
+      font-size: 26px;
+      font-weight: 500;
+    }
+    .op:hover { background: #ffb340; }
+    .op.active { background: #fff; color: #ff9f0a; }
+    .func {
+      background: #636366;
+      color: #fff;
+    }
+    .func:hover { background: #7c7c80; }
+    .zero {
+      grid-column: span 2;
+      text-align: left;
+      padding-left: 26px;
+    }
+  </style>
+</head>
+<body>
+  <div class="calc">
+    <div class="display">
+      <div class="expression" id="expression"></div>
+      <div class="result" id="result">0</div>
+    </div>
+    <div class="grid">
+      <button class="btn func" onclick="clear_all()">C</button>
+      <button class="btn func" onclick="negate()">+/-</button>
+      <button class="btn func" onclick="percent()">%</button>
+      <button class="btn op" id="btn_div" onclick="set_op('/')">&divide;</button>
+
+      <button class="btn num" onclick="digit('7')">7</button>
+      <button class="btn num" onclick="digit('8')">8</button>
+      <button class="btn num" onclick="digit('9')">9</button>
+      <button class="btn op" id="btn_mul" onclick="set_op('*')">&times;</button>
+
+      <button class="btn num" onclick="digit('4')">4</button>
+      <button class="btn num" onclick="digit('5')">5</button>
+      <button class="btn num" onclick="digit('6')">6</button>
+      <button class="btn op" id="btn_sub" onclick="set_op('-')">&minus;</button>
+
+      <button class="btn num" onclick="digit('1')">1</button>
+      <button class="btn num" onclick="digit('2')">2</button>
+      <button class="btn num" onclick="digit('3')">3</button>
+      <button class="btn op" id="btn_add" onclick="set_op('+')" >+</button>
+
+      <button class="btn num zero" onclick="digit('0')">0</button>
+      <button class="btn num" onclick="add_decimal()">.</button>
+      <button class="btn op" onclick="equals()">=</button>
+    </div>
+  </div>
+
+  <script>
+    var screen = '0';
+    var prev = null;
+    var op = null;
+    var reset_next = false;
+
+    function update() {
+      var el = document.getElementById('result');
+      el.textContent = screen;
+      el.className = screen.length > 9 ? 'result small' : 'result';
+
+      ['btn_add','btn_sub','btn_mul','btn_div'].forEach(function(id) {
+        document.getElementById(id).classList.remove('active');
+      });
+      if (op && reset_next) {
+        var map = {'+':'btn_add', '-':'btn_sub', '*':'btn_mul', '/':'btn_div'};
+        if (map[op]) document.getElementById(map[op]).classList.add('active');
+      }
+    }
+
+    function digit(d) {
+      if (reset_next) { screen = ''; reset_next = false; }
+      if (screen === '0' && d !== '.') screen = '';
+      screen += d;
+      update();
+    }
+
+    function add_decimal() {
+      if (reset_next) { screen = '0'; reset_next = false; }
+      if (screen.indexOf('.') === -1) screen += '.';
+      update();
+    }
+
+    function set_op(new_op) {
+      if (op && !reset_next) compute();
+      prev = parseFloat(screen);
+      op = new_op;
+      reset_next = true;
+      update();
+    }
+
+    function compute() {
+      if (prev === null || !op) return;
+      var cur = parseFloat(screen);
+      var r = 0;
+      switch(op) {
+        case '+': r = prev + cur; break;
+        case '-': r = prev - cur; break;
+        case '*': r = prev * cur; break;
+        case '/': r = cur !== 0 ? prev / cur : 'Error'; break;
+      }
+      if (typeof r === 'number') {
+        r = parseFloat(r.toPrecision(12));
+        screen = String(r);
+      } else {
+        screen = r;
+      }
+    }
+
+    function equals() {
+      var expr = (prev !== null && op) ? prev + ' ' + op + ' ' + screen : '';
+      compute();
+      document.getElementById('expression').textContent = expr;
+      op = null;
+      prev = null;
+      reset_next = true;
+      update();
+    }
+
+    function clear_all() {
+      screen = '0';
+      prev = null;
+      op = null;
+      reset_next = false;
+      document.getElementById('expression').textContent = '';
+      update();
+    }
+
+    function negate() {
+      if (screen !== '0' && screen !== 'Error') {
+        screen = String(-parseFloat(screen));
+        update();
+      }
+    }
+
+    function percent() {
+      screen = String(parseFloat(screen) / 100);
+      update();
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key >= '0' && e.key <= '9') digit(e.key);
+      else if (e.key === '.') add_decimal();
+      else if (e.key === '+') set_op('+');
+      else if (e.key === '-') set_op('-');
+      else if (e.key === '*') set_op('*');
+      else if (e.key === '/') { e.preventDefault(); set_op('/'); }
+      else if (e.key === 'Enter' || e.key === '=') equals();
+      else if (e.key === 'Escape') clear_all();
+      else if (e.key === 'Backspace') {
+        if (!reset_next && screen.length > 1) { screen = screen.slice(0, -1); update(); }
+        else { screen = '0'; update(); }
+      }
+    });
+  </script>
+</body>
+</html>
+"""
+
+win = clark_create("Calculator", 360, 540)
+clark_html(win, html)
+
+clark_borderless(win)
+tm_sleep(500)
+while clark_active(win):
+    tm_sleep(30)
+
+print("Calculator closed!")

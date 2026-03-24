@@ -1,0 +1,22 @@
+{
+    "type": "dynamic",
+    "functions": [
+        { "name": "tm_day",             "return": "int", "params": [] },
+        { "name": "tm_month",           "return": "int", "params": [] },
+        { "name": "tm_year",            "return": "int", "params": [] },
+        { "name": "tm_hour",            "return": "int", "params": [] },
+        { "name": "tm_minute",          "return": "int", "params": [] },
+        { "name": "tm_second",          "return": "int", "params": [] },
+        { "name": "tm_weekday",         "return": "int", "params": [] },
+        { "name": "tm_yearday",         "return": "int", "params": [] },
+        { "name": "tm_timestamp",       "return": "int", "params": [] },
+        { "name": "tm_date_num",        "return": "int", "params": [] },
+        { "name": "tm_time_num",        "return": "int", "params": [] },
+        { "name": "tm_date_str",        "return": "string", "params": [] },
+        { "name": "tm_time_str",        "return": "string", "params": [] },
+        { "name": "tm_full",            "return": "string", "params": [] },
+        { "name": "tm_sleep",           "return": "int", "params": ["int"] },
+        { "name": "tm_start",           "return": "int", "params": [] },
+        { "name": "tm_elapsed",         "return": "int", "params": [] }
+    ]
+}

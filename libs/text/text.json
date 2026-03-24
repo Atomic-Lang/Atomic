@@ -1,0 +1,23 @@
+{
+    "type": "dynamic",
+    "functions": [
+        { "name": "txt_upper",       "return": "string", "params": ["string"] },
+        { "name": "txt_lower",       "return": "string", "params": ["string"] },
+        { "name": "txt_length",      "return": "int",    "params": ["string"] },
+        { "name": "txt_contains",    "return": "int",    "params": ["string", "string"] },
+        { "name": "txt_trim",        "return": "string", "params": ["string"] },
+        { "name": "txt_replace",     "return": "string", "params": ["string", "string", "string"] },
+        { "name": "txt_repeat",      "return": "string", "params": ["string", "int"] },
+        { "name": "txt_reverse",     "return": "string", "params": ["string"] },
+        { "name": "txt_substr",      "return": "string", "params": ["string", "int", "int"] },
+        { "name": "txt_starts_with", "return": "int",    "params": ["string", "string"] },
+        { "name": "txt_ends_with",   "return": "int",    "params": ["string", "string"] },
+        { "name": "txt_index_of",    "return": "int",    "params": ["string", "string"] },
+        { "name": "txt_char_at",     "return": "string", "params": ["string", "int"] },
+        { "name": "txt_count",       "return": "int",    "params": ["string", "string"] },
+        { "name": "txt_split",       "return": "string", "params": ["string", "string", "int"] },
+        { "name": "txt_split_count", "return": "int",    "params": ["string", "string"] },
+        { "name": "txt_capitalize",  "return": "string", "params": ["string"] },
+        { "name": "txt_title",       "return": "string", "params": ["string"] }
+    ]
+}

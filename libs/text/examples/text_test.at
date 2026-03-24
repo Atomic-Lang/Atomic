@@ -1,0 +1,71 @@
+# text_test.at
+# Full test of the text library
+
+import text
+
+msg = "  Hello, World!  "
+
+# === Case conversion ===
+print("=== Case ===")
+printl("txt_upper()       -> ")
+print(txt_upper("hello atomic"))
+printl("txt_lower()       -> ")
+print(txt_lower("HELLO ATOMIC"))
+
+# === Length ===
+print("=== Length ===")
+printl("txt_length()      -> ")
+print(txt_length("atomic"))
+
+# === Trim ===
+print("=== Trim ===")
+printl("txt_trim()        -> [")
+printl(txt_trim(msg))
+print("]")
+
+# === Search ===
+print("=== Search ===")
+printl("txt_contains()    -> ")
+print(txt_contains("hello world", "world"))
+printl("txt_starts_with() -> ")
+print(txt_starts_with("hello world", "hello"))
+printl("txt_ends_with()   -> ")
+print(txt_ends_with("hello world", "world"))
+printl("txt_index_of()    -> ")
+print(txt_index_of("hello world", "world"))
+printl("txt_count()       -> ")
+print(txt_count("banana", "an"))
+
+# === Transform ===
+print("=== Transform ===")
+printl("txt_replace()     -> ")
+print(txt_replace("hello world", "world", "atomic"))
+printl("txt_repeat()      -> ")
+print(txt_repeat("ab", 4))
+printl("txt_reverse()     -> ")
+print(txt_reverse("atomic"))
+
+# === Substring ===
+print("=== Substring ===")
+printl("txt_substr()      -> ")
+print(txt_substr("hello world", 6, 5))
+printl("txt_char_at()     -> ")
+print(txt_char_at("atomic", 0))
+
+# === Split ===
+print("=== Split ===")
+printl("txt_split_count() -> ")
+print(txt_split_count("one,two,three", ","))
+printl("txt_split(0)      -> ")
+print(txt_split("one,two,three", ",", 0))
+printl("txt_split(1)      -> ")
+print(txt_split("one,two,three", ",", 1))
+printl("txt_split(2)      -> ")
+print(txt_split("one,two,three", ",", 2))
+
+# === Capitalize ===
+print("=== Capitalize ===")
+printl("txt_capitalize()  -> ")
+print(txt_capitalize("hello world"))
+printl("txt_title()       -> ")
+print(txt_title("hello world from atomic"))

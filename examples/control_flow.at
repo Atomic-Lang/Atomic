@@ -1,0 +1,62 @@
+# control_flow_en.at
+# Examples of control flow: if, while, for
+
+# --- If / Elif / Else ---
+print("=== Conditional ===")
+nota = 85
+if nota >= 90:
+    print("Grade A")
+elif nota >= 80:
+    print("Grade B")
+elif nota >= 70:
+    print("Grade C")
+else:
+    print("Grade F")
+
+# Negation
+ativo = 1
+if not ativo:
+    print("inactive")
+else:
+    print("active")
+
+# Comparisons
+x = 10
+if x == 10:
+    print("x is 10")
+if x != 5:
+    print("x is not 5")
+if x > 5:
+    print("x greater than 5")
+if x <= 10:
+    print("x less than or equal to 10")
+
+# --- While ---
+print("=== While ===")
+i = 0
+while i < 5:
+    print("i = {i}")
+    i += 1
+
+# Countdown
+print("=== Countdown ===")
+n = 5
+while n > 0:
+    print("{n}...")
+    n -= 1
+print("Go!")
+
+# --- For with exclusive range ---
+print("=== For 0..5 ===")
+for i in 0..5:
+    print("i = {i}")
+
+# --- For with inclusive range ---
+print("=== For 1..=5 ===")
+for i in 1..=5:
+    print("i = {i}")
+
+# --- Nested For (table) ---
+print("=== Squares ===")
+for i in 0..6:
+    print("{i} * {i} = {i * i}")

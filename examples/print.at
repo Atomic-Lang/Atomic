@@ -1,0 +1,39 @@
+# print_en.at
+# Examples of print, strings, and interpolation
+
+# Simple print
+print("Hello World!")
+print("Atomic Language v0.1")
+
+# String variables
+name = "Atomic"
+versao = "0.1"
+print(nome)
+print(versao)
+
+# Simple interpolation (1 expression)
+print("Language: {name}")
+
+# Interpolation with 2 expressions
+print("{name} v{versao}")
+
+# Interpolation with arithmetic expressions
+x = 42
+print("The value of x is {x}")
+print("x + 1 = {x + 1}")
+print("x * 2 = {x * 2}")
+
+# Interpolation with 3+ expressions
+a = 10
+b = 20
+print("{a} + {b} = {a + b}")
+print("{a} * {b} = {a * b}")
+
+# Printing integers
+print(42)
+print(0)
+print(-1)
+
+# Printing expressions
+print(10 + 20)
+print(100 - 1)

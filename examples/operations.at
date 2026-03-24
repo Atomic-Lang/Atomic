@@ -1,0 +1,50 @@
+# operations_en.at
+# Examples of arithmetic operations, bitwise ops, and compound assignment
+
+# --- Basic arithmetic ---
+print("=== Arithmetic ===")
+a = 10
+b = 3
+print("a = {a}, b = {b}")
+print("sum:  {a + b}")
+print("sub:  {a - b}")
+print("mul:  {a * b}")
+print("div:  {a / b}")
+print("mod:  {a % b}")
+print("pow:  {2 ** 8}")
+print("pow:  {3 ** 3}")
+
+# --- Compound assignment ---
+print("=== Compound assignment ===")
+x = 10
+print("x = {x}")
+x += 5
+print("x += 5 -> {x}")
+x -= 3
+print("x -= 3 -> {x}")
+x *= 2
+print("x *= 2 -> {x}")
+x /= 4
+print("x /= 4 -> {x}")
+x %= 5
+print("x %= 5 -> {x}")
+
+# --- Bitwise operations ---
+print("=== Bitwise ===")
+flags = 0xFF
+mask = 0x0F
+print("flags = {flags}")
+print("mask  = {mask}")
+print("AND:  {flags & mask}")
+print("OR:   {flags | 0x100}")
+print("XOR:  {flags ^ mask}")
+print("SHL:  {1 << 4}")
+print("SHR:  {256 >> 3}")
+print("NOT:  {~0}")
+
+# --- Constants ---
+print("=== Constants ===")
+const PI = 3
+const MAX = 100
+print("PI = {PI}")
+print("MAX = {MAX}")

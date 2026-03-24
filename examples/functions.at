@@ -1,0 +1,87 @@
+# functions_en.at
+# Examples of functions, recursion, algorithms, and strings
+
+# --- Simple function ---
+print("=== Functions ===")
+
+fn soma(a, b):
+    return a + b
+
+fn dobro(x):
+    return x * 2
+
+print("soma(3, 4) = {soma(3, 4)}")
+print("soma(40, 2) = {soma(40, 2)}")
+print("dobro(21) = {dobro(21)}")
+
+# --- Recursion: factorial ---
+print("=== Factorial ===")
+
+fn fatorial(n):
+    if n <= 1:
+        return 1
+    return n * fatorial(n - 1)
+
+print("fatorial(1)  = {fatorial(1)}")
+print("fatorial(5)  = {fatorial(5)}")
+print("fatorial(10) = {fatorial(10)}")
+
+# --- Iterative Fibonacci ---
+print("=== Fibonacci ===")
+
+fn fibonacci(n):
+    if n <= 0:
+        return 0
+    if n == 1:
+        return 1
+    a = 0
+    b = 1
+    for i in 2..=n:
+        temp = a + b
+        a = b
+        b = temp
+    return b
+
+for i in 0..10:
+    print("fib({i}) = {fibonacci(i)}")
+
+# --- Functions with strings ---
+print("=== Strings ===")
+
+fn greeting(nome):
+    return "Hello, {nome}!"
+
+fn to_present(nome, idade):
+    return "{nome} has {idade} years"
+
+fn despedida(nome):
+    return "See you soon, {nome}!"
+
+print(greeting("Atomic"))
+print(greeting("John"))
+print(to_present("Mary", 30))
+print(to_present("Peter", 17))
+print(greeting("world"))
+
+# --- Function with logic ---
+print("=== Classification ===")
+
+fn classificar(idade):
+    if idade < 13:
+        return 1
+    if idade < 18:
+        return 2
+    if idade < 60:
+        return 3
+    return 4
+
+for idade in 0..=70:
+    cat = classificar(idade)
+    if idade == 0:
+        print("age {idade}: child")
+    if idade == 13:
+        print("age {idade}: teenager")
+    if idade == 18:
+        print("age {idade}: adult")
+    if idade == 60:
+        print("age {idade}: elderly")

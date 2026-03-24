@@ -1,0 +1,17 @@
+{
+    "type": "dynamic",
+    "functions": [
+        { "name": "clark_create",     "return": "int",    "params": ["string", "int", "int"] },
+        { "name": "clark_html",       "return": "int",    "params": ["int", "string"] },
+        { "name": "clark_file",       "return": "int",    "params": ["int", "string"] },
+        { "name": "clark_js",         "return": "int",    "params": ["int", "string"] },
+        { "name": "clark_bind",       "return": "int",    "params": ["int", "string"] },
+        { "name": "clark_active",     "return": "int",    "params": ["int"] },
+        { "name": "clark_event",      "return": "string", "params": ["int"] },
+        { "name": "clark_js_value",   "return": "string", "params": ["int"] },
+        { "name": "clark_title",      "return": "int",    "params": ["int", "string"] },
+        { "name": "clark_size",       "return": "int",    "params": ["int", "int", "int"] },
+        { "name": "clark_borderless", "return": "int",    "params": ["int"] },
+        { "name": "clark_close",      "return": "int",    "params": ["int"] }
+    ]
+}

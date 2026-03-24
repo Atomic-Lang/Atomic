@@ -1,0 +1,10 @@
+import time
+
+tm_start()
+x = 0
+while x < 1000000:
+    print(x)
+    x += 1
+
+
+print(tm_elapsed())

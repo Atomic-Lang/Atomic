@@ -1,0 +1,58 @@
+# time_test.at
+# Full test of the time library
+
+import time
+
+# === Date and time info ===
+print("=== Current Date/Time ===")
+printl("tm_full()       -> ")
+print(tm_full())
+printl("tm_date_str()   -> ")
+print(tm_date_str())
+printl("tm_time_str()   -> ")
+print(tm_time_str())
+
+# === Individual components ===
+print("=== Components ===")
+printl("tm_day()        -> ")
+print(tm_day())
+printl("tm_month()      -> ")
+print(tm_month())
+printl("tm_year()       -> ")
+print(tm_year())
+printl("tm_hour()       -> ")
+print(tm_hour())
+printl("tm_minute()     -> ")
+print(tm_minute())
+printl("tm_second()     -> ")
+print(tm_second())
+printl("tm_weekday()    -> ")
+print(tm_weekday())
+printl("tm_yearday()    -> ")
+print(tm_yearday())
+
+# === Numeric formats ===
+print("=== Numeric ===")
+printl("tm_date_num()   -> ")
+print(tm_date_num())
+printl("tm_time_num()   -> ")
+print(tm_time_num())
+printl("tm_timestamp()  -> ")
+print(tm_timestamp())
+
+# === Sleep test ===
+print("=== Sleep ===")
+print("tm_sleep(2000)  -> waiting 2 seconds...")
+tm_sleep(2000)
+printl("done! now:      -> ")
+print(tm_time_str())
+
+# === Stopwatch test ===
+print("=== Stopwatch ===")
+print("tm_start()")
+tm_start()
+print("tm_sleep(1500)  -> waiting 1.5 seconds...")
+tm_sleep(1500)
+printl("tm_elapsed()    -> ")
+printl(tm_elapsed())
+print(" ms")
