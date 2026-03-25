@@ -5,6 +5,11 @@
 #include "parser.hpp"
 #include "sema.hpp"
 #include "codegen.hpp"
+
+#ifdef _WIN32
+    #include "backend_windows/linker_windows.hpp"
+#endif
+
 #include <fstream>
 #include <sstream>
 #include <iostream>
@@ -12,6 +17,22 @@
 #include <cstdlib>
 
 namespace fs = std::filesystem;
+
+// ============================================================================
+// Diretorio do executavel (para encontrar ld_linker/)
+// ============================================================================
+
+static std::string g_exe_dir;
+
+static std::string get_exe_dir(const char* argv0) {
+    // Usar argv[0] para encontrar o diretorio do executavel
+    fs::path p(argv0);
+    if (p.has_parent_path()) {
+        auto abs = fs::absolute(p.parent_path());
+        if (fs::exists(abs)) return abs.string();
+    }
+    return fs::current_path().string();
+}
 
 // ============================================================================
 // AST Printer (debug)
@@ -558,31 +579,13 @@ int cmd_build(const std::string& filepath, const std::string& output_name, bool 
 
         std::cout << "compiled: " << filename << " -> " << obj_path << "\n";
 
-        // Link with gcc — adicionar .dla importadas
-        std::string link_cmd = "gcc -o " + exe_path + " " + obj_path + " -lmsvcrt -lkernel32";
-        if (windowed) {
-            link_cmd += " -mwindows";
-        }
-        for (auto& dla : codegen.dla_paths()) {
-            link_cmd += " \"" + dla + "\"";
-        }
-        int ret = std::system(link_cmd.c_str());
-        if (ret != 0) {
-            std::cerr << "error: linking failed\n";
+        // Link via ld.exe embutido
+        if (!atomic::link_exe(obj_path, exe_path, g_exe_dir, codegen.dla_paths(), windowed)) {
             return 1;
         }
 
         // Remove .obj
         fs::remove(obj_path);
-
-        // Copiar .dla para o diretorio do exe (necessario em runtime)
-        for (auto& dla : codegen.dla_paths()) {
-            auto dla_name = fs::path(dla).filename().string();
-            auto dest = fs::path(exe_path).parent_path() / dla_name;
-            if (fs::path(dla) != dest) {
-                fs::copy_file(dla, dest, fs::copy_options::overwrite_existing);
-            }
-        }
 
         std::cout << "linked:   " << exe_path << "\n";
     } catch (const atomic::LexerError& e) {
@@ -640,25 +643,10 @@ int cmd_run(const std::string& filepath) {
             return 1;
         }
 
-        // Link — adicionar .dla importadas
-        std::string link_cmd = "gcc -o " + exe_path + " " + obj_path + " -lmsvcrt -lkernel32";
-        for (auto& dla : codegen.dla_paths()) {
-            link_cmd += " \"" + dla + "\"";
-        }
-        ret = std::system(link_cmd.c_str());
-        if (ret != 0) {
-            std::cerr << "error: linking failed\n";
+        // Link via ld.exe embutido
+        if (!atomic::link_exe(obj_path, exe_path, g_exe_dir, codegen.dla_paths())) {
             fs::remove_all(temp_dir);
             return 1;
-        }
-
-        // Copiar .dla para o diretorio temp (necessario em runtime)
-        for (auto& dla : codegen.dla_paths()) {
-            auto dla_name = fs::path(dla).filename().string();
-            auto dest = temp_dir / dla_name;
-            if (fs::path(dla) != dest) {
-                fs::copy_file(dla, dest, fs::copy_options::overwrite_existing);
-            }
         }
 
         // Executar
@@ -715,6 +703,8 @@ int cmd_check(const std::string& filepath) {
 }
 
 int main(int argc, char* argv[]) {
+    g_exe_dir = get_exe_dir(argv[0]);
+
     if (argc < 2) {
         print_usage(argv[0]);
         return 1;

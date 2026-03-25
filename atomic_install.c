@@ -27,7 +27,7 @@
 #define GITHUB_REPO "Atomic-Lang/Atomic"
 #define GITHUB_TAGS_URL "https://api.github.com/repos/" GITHUB_REPO "/tags"
 #define GITHUB_ZIP_BASE "https://github.com/" GITHUB_REPO "/archive/refs/tags/"
-#define GITHUB_MAIN_ZIP "https://github.com/" GITHUB_REPO "/archive/refs/heads/main.zip"
+#define GITHUB_MAIN_ZIP "https://github.com/" GITHUB_REPO "/archive/refs/heads/master.zip"
 
 /* ============================================================================ */
 /* Helpers                                                                      */
