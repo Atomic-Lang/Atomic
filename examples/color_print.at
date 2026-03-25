@@ -1,20 +1,21 @@
-#Print with automatic line break
+# color_print.at
+# Examples of colored and inline printing
+
+# Print with automatic line break
 print("this line is normal")
 
-#Print without automatic line break.
+# Print without automatic line break
 printl("this line is ")
 print("next to this")
 
-#colorful print
+# Colorful print
 print_y("yellow")
 print_r("red")
 print_b("blue")
 print_g("green")
 
-#Full-color print without line breaks.
+# Full-color print without line breaks
 printl_y("one ")
 printl_r("world ")
 printl_b("of ")
 printl_g("color")
-
-

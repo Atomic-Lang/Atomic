@@ -1,21 +1,21 @@
-# control_flow_en.at
+# control_flow.at
 # Examples of control flow: if, while, for
 
 # --- If / Elif / Else ---
 print("=== Conditional ===")
-nota = 85
-if nota >= 90:
+grade = 85
+if grade >= 90:
     print("Grade A")
-elif nota >= 80:
+elif grade >= 80:
     print("Grade B")
-elif nota >= 70:
+elif grade >= 70:
     print("Grade C")
 else:
     print("Grade F")
 
 # Negation
-ativo = 1
-if not ativo:
+active = 1
+if not active:
     print("inactive")
 else:
     print("active")
@@ -30,6 +30,27 @@ if x > 5:
     print("x greater than 5")
 if x <= 10:
     print("x less than or equal to 10")
+
+# Logical operators: and, or, not
+print("=== Logical Operators ===")
+age = 25
+has_license = true
+if age >= 18 and has_license:
+    print("can drive")
+
+temperature = 35
+if temperature < 0 or temperature > 40:
+    print("extreme weather")
+else:
+    print("normal weather")
+
+logged_in = 0
+if not logged_in:
+    print("please log in")
+
+score = 75
+if score >= 70 and score < 90:
+    print("passed with merit")
 
 # --- While ---
 print("=== While ===")

@@ -382,6 +382,185 @@ public:
     }
 
     // ========================================================================
+    // SSE2 — operacoes com double (float64)
+    // ========================================================================
+
+    // movq xmm, reg (mover inteiro de reg GPR para xmm)
+    // 66 48 0F 6E /r — MOVQ xmm, r/m64
+    void emit_movq_xmm_reg(uint8_t xmm, uint8_t gpr) {
+        m_text.emit_u8(0x66);
+        rex(true, xmm >= 8, false, gpr >= 8);
+        m_text.emit_u8(0x0F);
+        m_text.emit_u8(0x6E);
+        modrm(0b11, xmm & 7, gpr & 7);
+    }
+
+    // movq reg, xmm (mover de xmm para reg GPR)
+    // 66 48 0F 7E /r — MOVQ r/m64, xmm
+    void emit_movq_reg_xmm(uint8_t gpr, uint8_t xmm) {
+        m_text.emit_u8(0x66);
+        rex(true, xmm >= 8, false, gpr >= 8);
+        m_text.emit_u8(0x0F);
+        m_text.emit_u8(0x7E);
+        modrm(0b11, xmm & 7, gpr & 7);
+    }
+
+    // movsd xmm, [rbp + offset]
+    // F2 0F 10 /r
+    void emit_movsd_xmm_rbp_offset(uint8_t xmm, int32_t offset) {
+        m_text.emit_u8(0xF2);
+        if (xmm >= 8) rex(false, true, false, false);
+        m_text.emit_u8(0x0F);
+        m_text.emit_u8(0x10);
+        modrm(0b10, xmm & 7, 5); // [rbp + disp32]
+        m_text.emit_i32(offset);
+    }
+
+    // movsd [rbp + offset], xmm
+    // F2 0F 11 /r
+    void emit_movsd_rbp_offset_xmm(int32_t offset, uint8_t xmm) {
+        m_text.emit_u8(0xF2);
+        if (xmm >= 8) rex(false, true, false, false);
+        m_text.emit_u8(0x0F);
+        m_text.emit_u8(0x11);
+        modrm(0b10, xmm & 7, 5); // [rbp + disp32]
+        m_text.emit_i32(offset);
+    }
+
+    // movsd xmm_dst, xmm_src
+    // F2 0F 10 /r (com mod=11)
+    void emit_movsd_xmm_xmm(uint8_t dst, uint8_t src) {
+        m_text.emit_u8(0xF2);
+        // REX se necessario
+        bool need_rex = (dst >= 8 || src >= 8);
+        if (need_rex) {
+            uint8_t val = 0x40;
+            if (dst >= 8) val |= 0x04; // R
+            if (src >= 8) val |= 0x01; // B
+            m_text.emit_u8(val);
+        }
+        m_text.emit_u8(0x0F);
+        m_text.emit_u8(0x10);
+        modrm(0b11, dst & 7, src & 7);
+    }
+
+    // addsd xmm, xmm
+    // F2 0F 58 /r
+    void emit_addsd_xmm_xmm(uint8_t dst, uint8_t src) {
+        m_text.emit_u8(0xF2);
+        bool need_rex = (dst >= 8 || src >= 8);
+        if (need_rex) {
+            uint8_t val = 0x40;
+            if (dst >= 8) val |= 0x04;
+            if (src >= 8) val |= 0x01;
+            m_text.emit_u8(val);
+        }
+        m_text.emit_u8(0x0F);
+        m_text.emit_u8(0x58);
+        modrm(0b11, dst & 7, src & 7);
+    }
+
+    // subsd xmm, xmm
+    // F2 0F 5C /r
+    void emit_subsd_xmm_xmm(uint8_t dst, uint8_t src) {
+        m_text.emit_u8(0xF2);
+        bool need_rex = (dst >= 8 || src >= 8);
+        if (need_rex) {
+            uint8_t val = 0x40;
+            if (dst >= 8) val |= 0x04;
+            if (src >= 8) val |= 0x01;
+            m_text.emit_u8(val);
+        }
+        m_text.emit_u8(0x0F);
+        m_text.emit_u8(0x5C);
+        modrm(0b11, dst & 7, src & 7);
+    }
+
+    // mulsd xmm, xmm
+    // F2 0F 59 /r
+    void emit_mulsd_xmm_xmm(uint8_t dst, uint8_t src) {
+        m_text.emit_u8(0xF2);
+        bool need_rex = (dst >= 8 || src >= 8);
+        if (need_rex) {
+            uint8_t val = 0x40;
+            if (dst >= 8) val |= 0x04;
+            if (src >= 8) val |= 0x01;
+            m_text.emit_u8(val);
+        }
+        m_text.emit_u8(0x0F);
+        m_text.emit_u8(0x59);
+        modrm(0b11, dst & 7, src & 7);
+    }
+
+    // divsd xmm, xmm
+    // F2 0F 5E /r
+    void emit_divsd_xmm_xmm(uint8_t dst, uint8_t src) {
+        m_text.emit_u8(0xF2);
+        bool need_rex = (dst >= 8 || src >= 8);
+        if (need_rex) {
+            uint8_t val = 0x40;
+            if (dst >= 8) val |= 0x04;
+            if (src >= 8) val |= 0x01;
+            m_text.emit_u8(val);
+        }
+        m_text.emit_u8(0x0F);
+        m_text.emit_u8(0x5E);
+        modrm(0b11, dst & 7, src & 7);
+    }
+
+    // cvtsi2sd xmm, reg (converter inteiro 64-bit para double)
+    // F2 48 0F 2A /r
+    void emit_cvtsi2sd_xmm_reg(uint8_t xmm, uint8_t gpr) {
+        m_text.emit_u8(0xF2);
+        rex(true, xmm >= 8, false, gpr >= 8);
+        m_text.emit_u8(0x0F);
+        m_text.emit_u8(0x2A);
+        modrm(0b11, xmm & 7, gpr & 7);
+    }
+
+    // cvttsd2si reg, xmm (converter double para inteiro 64-bit, truncado)
+    // F2 48 0F 2C /r
+    void emit_cvttsd2si_reg_xmm(uint8_t gpr, uint8_t xmm) {
+        m_text.emit_u8(0xF2);
+        rex(true, gpr >= 8, false, xmm >= 8);
+        m_text.emit_u8(0x0F);
+        m_text.emit_u8(0x2C);
+        modrm(0b11, gpr & 7, xmm & 7);
+    }
+
+    // ucomisd xmm, xmm (comparacao unordered de doubles — seta flags)
+    // 66 0F 2E /r
+    void emit_ucomisd_xmm_xmm(uint8_t a, uint8_t b) {
+        m_text.emit_u8(0x66);
+        bool need_rex = (a >= 8 || b >= 8);
+        if (need_rex) {
+            uint8_t val = 0x40;
+            if (a >= 8) val |= 0x04;
+            if (b >= 8) val |= 0x01;
+            m_text.emit_u8(val);
+        }
+        m_text.emit_u8(0x0F);
+        m_text.emit_u8(0x2E);
+        modrm(0b11, a & 7, b & 7);
+    }
+
+    // xorpd xmm, xmm (zerar xmm)
+    // 66 0F 57 /r
+    void emit_xorpd_xmm_xmm(uint8_t dst, uint8_t src) {
+        m_text.emit_u8(0x66);
+        bool need_rex = (dst >= 8 || src >= 8);
+        if (need_rex) {
+            uint8_t val = 0x40;
+            if (dst >= 8) val |= 0x04;
+            if (src >= 8) val |= 0x01;
+            m_text.emit_u8(val);
+        }
+        m_text.emit_u8(0x0F);
+        m_text.emit_u8(0x57);
+        modrm(0b11, dst & 7, src & 7);
+    }
+
+    // ========================================================================
     // Alinhamento
     // ========================================================================
 

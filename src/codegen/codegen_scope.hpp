@@ -180,8 +180,15 @@ private:
 
     VarType infer_type_impl(const BinaryExpr& e) const {
         auto lt = infer_expr_type(*e.left);
+        auto rt = infer_expr_type(*e.right);
         if (e.op >= TokenType::Equal && e.op <= TokenType::GreaterEqual)
             return VarType::Bool;
+        // Divisao sempre produz Float (estilo Python 3)
+        if (e.op == TokenType::Slash)
+            return VarType::Float;
+        // Float contamina: se qualquer operando e Float, resultado e Float
+        if (lt == VarType::Float || rt == VarType::Float)
+            return VarType::Float;
         return lt;
     }
 

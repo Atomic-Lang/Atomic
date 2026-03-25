@@ -115,6 +115,13 @@ private:
 
     static constexpr uint8_t ARG_REGS[] = {RCX, RDX, R8, R9};
 
+    // Precisao float temporaria propagada do print(Nf: ...) para interpolated strings
+    int m_float_precision = -1;
+
+    // Stack de break/continue: cada loop empurra um vetor de offsets para patch
+    std::vector<std::vector<size_t>> m_break_targets;
+    std::vector<size_t> m_continue_targets;
+
     // ========================================================================
     // String literal em .rdata
     // ========================================================================
@@ -361,7 +368,14 @@ private:
             // Comparacoes retornam bool, aritmetica retorna o tipo do operando
             if (bin.op >= TokenType::Equal && bin.op <= TokenType::GreaterEqual)
                 return VarType::Bool;
-            return infer_return_expr_type(*bin.left);
+            // Divisao sempre produz Float (estilo Python 3)
+            if (bin.op == TokenType::Slash)
+                return VarType::Float;
+            auto lt = infer_return_expr_type(*bin.left);
+            auto rt = infer_return_expr_type(*bin.right);
+            if (lt == VarType::Float || rt == VarType::Float)
+                return VarType::Float;
+            return lt;
         }
         if (expr.is<UnaryExpr>()) {
             return infer_return_expr_type(*expr.as<UnaryExpr>().operand);
@@ -490,6 +504,9 @@ private:
     void gen_stmt_impl(const WhileStmt& s) {
         size_t loop_start = m_x86.pos();
 
+        m_break_targets.push_back({});
+        m_continue_targets.push_back(loop_start);
+
         gen_expr(*s.condition);
         m_x86.emit_test_reg_reg(RAX, RAX);
         size_t end_off = m_x86.emit_jcc_rel32(cc::E);
@@ -501,10 +518,20 @@ private:
         size_t back_off = m_x86.emit_jmp_rel32();
         m_x86.patch_jump(back_off, loop_start);
         m_x86.patch_jump(end_off, m_x86.pos());
+
+        // Patch todos os breaks para apontar ao fim do loop
+        for (auto off : m_break_targets.back()) {
+            m_x86.patch_jump(off, m_x86.pos());
+        }
+        m_break_targets.pop_back();
+        m_continue_targets.pop_back();
     }
 
     void gen_stmt_impl(const LoopStmt& s) {
         size_t loop_start = m_x86.pos();
+
+        m_break_targets.push_back({});
+        m_continue_targets.push_back(loop_start);
 
         m_scope.push_scope();
         for (auto& st : s.body) gen_stmt(*st);
@@ -512,6 +539,12 @@ private:
 
         size_t back_off = m_x86.emit_jmp_rel32();
         m_x86.patch_jump(back_off, loop_start);
+
+        for (auto off : m_break_targets.back()) {
+            m_x86.patch_jump(off, m_x86.pos());
+        }
+        m_break_targets.pop_back();
+        m_continue_targets.pop_back();
     }
 
     void gen_stmt_impl(const ForStmt& s) {
@@ -532,6 +565,9 @@ private:
 
         size_t loop_start = m_x86.pos();
 
+        m_break_targets.push_back({});
+        m_continue_targets.push_back(loop_start);
+
         m_x86.emit_mov_reg_rbp_offset(RAX, iter_var.stack_offset);
         m_x86.emit_mov_reg_rbp_offset(RCX, end_var.stack_offset);
         m_x86.emit_cmp_reg_reg(RAX, RCX);
@@ -548,12 +584,28 @@ private:
         m_x86.patch_jump(back_off, loop_start);
         m_x86.patch_jump(end_off, m_x86.pos());
 
+        for (auto off : m_break_targets.back()) {
+            m_x86.patch_jump(off, m_x86.pos());
+        }
+        m_break_targets.pop_back();
+        m_continue_targets.pop_back();
+
         m_scope.pop_scope();
     }
 
     // Stubs
-    void gen_stmt_impl(const BreakStmt&) {}
-    void gen_stmt_impl(const ContinueStmt&) {}
+    void gen_stmt_impl(const BreakStmt&) {
+        if (!m_break_targets.empty()) {
+            size_t jmp_off = m_x86.emit_jmp_rel32();
+            m_break_targets.back().push_back(jmp_off);
+        }
+    }
+    void gen_stmt_impl(const ContinueStmt&) {
+        if (!m_continue_targets.empty()) {
+            size_t jmp_off = m_x86.emit_jmp_rel32();
+            m_x86.patch_jump(jmp_off, m_continue_targets.back());
+        }
+    }
     void gen_stmt_impl(const MatchStmt&) {}
     void gen_stmt_impl(const StructDeclStmt&) {}
     void gen_stmt_impl(const EnumDeclStmt&) {}
@@ -673,6 +725,34 @@ private:
     }
 
     void gen_expr_impl(const BinaryExpr& e) {
+        // Inferir tipos dos operandos para decidir se usa SSE
+        VarType lt = m_scope.infer_expr_type(*e.left);
+        VarType rt = m_scope.infer_expr_type(*e.right);
+        bool is_float_op = (lt == VarType::Float || rt == VarType::Float);
+
+        // Divisao (/) sempre produz float, mesmo entre inteiros (estilo Python 3)
+        if (e.op == TokenType::Slash) is_float_op = true;
+
+        // Quando m_float_precision ativo (dentro de print(Nf: ...)),
+        // forcar aritmetica float mesmo entre inteiros
+        if (m_float_precision >= 0 && !is_float_op &&
+            (e.op == TokenType::Plus || e.op == TokenType::Minus ||
+             e.op == TokenType::Star ||
+             e.op == TokenType::Percent)) {
+            is_float_op = true;
+        }
+
+        // Para operacoes aritmeticas com float, usar SSE
+        if (is_float_op && (e.op == TokenType::Plus || e.op == TokenType::Minus ||
+                            e.op == TokenType::Star || e.op == TokenType::Slash ||
+                            e.op == TokenType::Percent ||
+                            e.op == TokenType::Equal || e.op == TokenType::NotEqual ||
+                            e.op == TokenType::Less || e.op == TokenType::Greater ||
+                            e.op == TokenType::LessEqual || e.op == TokenType::GreaterEqual)) {
+            gen_float_binary(e, lt, rt);
+            return;
+        }
+
         gen_expr(*e.left);
         m_x86.emit_push(RAX);
         gen_expr(*e.right);
@@ -683,7 +763,6 @@ private:
             case TokenType::Plus:    m_x86.emit_add_reg_reg(RAX, RCX); break;
             case TokenType::Minus:   m_x86.emit_sub_reg_reg(RAX, RCX); break;
             case TokenType::Star:    m_x86.emit_imul_reg_reg(RAX, RCX); break;
-            case TokenType::Slash:   m_x86.emit_cqo(); m_x86.emit_idiv_reg(RCX); break;
             case TokenType::Percent:
                 m_x86.emit_cqo(); m_x86.emit_idiv_reg(RCX);
                 m_x86.emit_mov_reg_reg(RAX, RDX);
@@ -735,6 +814,108 @@ private:
         }
     }
 
+    // ========================================================================
+    // Operacoes binarias com float (SSE2)
+    // ========================================================================
+
+    // Carrega operando em XMM, convertendo de int se necessario.
+    // O valor ja deve estar em RAX (bits raw).
+    void emit_load_xmm_from_rax(uint8_t xmm_reg, VarType type) {
+        if (type == VarType::Float) {
+            // RAX contem bits IEEE 754 — mover diretamente para XMM
+            m_x86.emit_movq_xmm_reg(xmm_reg, RAX);
+        } else {
+            // RAX contem inteiro — converter para double
+            m_x86.emit_cvtsi2sd_xmm_reg(xmm_reg, RAX);
+        }
+    }
+
+    void gen_float_binary(const BinaryExpr& e, VarType lt, VarType rt) {
+        // Avaliar operando esquerdo → RAX
+        gen_expr(*e.left);
+        m_x86.emit_push(RAX);
+
+        // Avaliar operando direito → RAX
+        gen_expr(*e.right);
+
+        // Carregar direito em XMM1
+        emit_load_xmm_from_rax(xmm::XMM1, rt);
+
+        // Recuperar esquerdo e carregar em XMM0
+        m_x86.emit_pop(RAX);
+        emit_load_xmm_from_rax(xmm::XMM0, lt);
+
+        bool is_comparison = false;
+
+        switch (e.op) {
+            case TokenType::Plus:
+                m_x86.emit_addsd_xmm_xmm(xmm::XMM0, xmm::XMM1);
+                break;
+            case TokenType::Minus:
+                m_x86.emit_subsd_xmm_xmm(xmm::XMM0, xmm::XMM1);
+                break;
+            case TokenType::Star:
+                m_x86.emit_mulsd_xmm_xmm(xmm::XMM0, xmm::XMM1);
+                break;
+            case TokenType::Slash:
+                m_x86.emit_divsd_xmm_xmm(xmm::XMM0, xmm::XMM1);
+                break;
+            case TokenType::Percent: {
+                // fmod: a - trunc(a/b) * b
+                // XMM0 = a, XMM1 = b
+                // XMM2 = a / b
+                m_x86.emit_movsd_xmm_xmm(xmm::XMM2, xmm::XMM0);
+                m_x86.emit_divsd_xmm_xmm(xmm::XMM2, xmm::XMM1);
+                // Truncar para inteiro e voltar a double
+                m_x86.emit_cvttsd2si_reg_xmm(RAX, xmm::XMM2);
+                m_x86.emit_cvtsi2sd_xmm_reg(xmm::XMM2, RAX);
+                // XMM2 = trunc(a/b) * b
+                m_x86.emit_mulsd_xmm_xmm(xmm::XMM2, xmm::XMM1);
+                // XMM0 = a - trunc(a/b) * b
+                m_x86.emit_subsd_xmm_xmm(xmm::XMM0, xmm::XMM2);
+                break;
+            }
+            case TokenType::Equal:
+            case TokenType::NotEqual:
+            case TokenType::Less:
+            case TokenType::Greater:
+            case TokenType::LessEqual:
+            case TokenType::GreaterEqual:
+                is_comparison = true;
+                // ucomisd seta flags CF e ZF
+                m_x86.emit_ucomisd_xmm_xmm(xmm::XMM0, xmm::XMM1);
+                break;
+            default: break;
+        }
+
+        if (is_comparison) {
+            // ucomisd usa flags unsigned: CF=1 se a < b, ZF=1 se a == b
+            // Mapeamento para setcc com condition codes unsigned:
+            // a == b  → ZF=1          → sete  (0x04)
+            // a != b  → ZF=0          → setne (0x05)
+            // a < b   → CF=1          → setb  (0x02)
+            // a >= b  → CF=0          → setae (0x03)
+            // a <= b  → CF=1 or ZF=1  → setbe (0x06)
+            // a > b   → CF=0 and ZF=0 → seta  (0x07)
+            uint8_t float_cc;
+            switch (e.op) {
+                case TokenType::Equal:        float_cc = 0x04; break; // sete
+                case TokenType::NotEqual:     float_cc = 0x05; break; // setne
+                case TokenType::Less:         float_cc = 0x02; break; // setb
+                case TokenType::GreaterEqual: float_cc = 0x03; break; // setae
+                case TokenType::LessEqual:    float_cc = 0x06; break; // setbe
+                case TokenType::Greater:      float_cc = 0x07; break; // seta
+                default: float_cc = 0x04; break;
+            }
+            m_x86.emit_setcc(float_cc);
+            m_x86.emit_movzx_rax_al();
+            return;
+        }
+
+        // Mover resultado float de XMM0 de volta para RAX (como bits IEEE 754)
+        m_x86.emit_movq_reg_xmm(RAX, xmm::XMM0);
+    }
+
     void gen_expr_impl(const CallExpr& e) {
         std::string fn_name;
         if (e.callee->is<IdentifierExpr>()) {
@@ -772,6 +953,102 @@ private:
     // ========================================================================
     // Print
     // ========================================================================
+
+    // Imprime float com trim de zeros a direita: sprintf(buf,"%.6f",val) + trim + printf
+    // RAX deve conter bits IEEE 754 do double. has_newline controla \n no final.
+    void emit_float_smart_print(uint8_t val_reg, bool has_newline) {
+        // Reservar buffer de 64 bytes na stack
+        int32_t buf_off = m_scope.reserve_stack(64);
+        // Salvar valor double na stack
+        int32_t val_off = m_scope.reserve_stack(8);
+        m_x86.emit_mov_rbp_offset_reg(val_off, val_reg);
+
+        // sprintf(buf, "%.6f", val)
+        m_x86.emit_lea_reg_rbp_offset(RCX, buf_off);           // RCX = buf
+        emit_lea_rdata(RDX, add_string_literal("%.6f"));        // RDX = fmt
+        m_x86.emit_mov_reg_rbp_offset(R8, val_off);            // R8 = double bits
+        m_x86.emit_movq_xmm_reg(xmm::XMM2, R8);               // XMM2 = double (varargs ABI)
+        emit_extern_call("sprintf");
+
+        // strlen(buf) → RAX = len
+        m_x86.emit_lea_reg_rbp_offset(RCX, buf_off);
+        emit_extern_call("strlen");
+
+        // RAX = len. Agora trim: percorrer de buf[len-1] ate buf[0]
+        // while (len > 0 && buf[len-1] == '0') buf[--len] = '\0'
+        // if (len > 0 && buf[len-1] == '.') buf[--len] = '\0'
+
+        // Usar RCX = ponteiro base do buf, RAX = len
+        m_x86.emit_lea_reg_rbp_offset(RCX, buf_off);
+
+        // Loop: trim '0'
+        size_t trim_loop = m_x86.pos();
+        // if (len == 0) break
+        m_x86.emit_test_reg_reg(RAX, RAX);
+        size_t trim_done = m_x86.emit_jcc_rel32(cc::E);
+        // dl = buf[len-1]
+        // lea rdx, [rcx + rax - 1] → carrega byte
+        m_x86.emit_dec_reg(RAX);              // rax = len-1
+        // Carregar byte: movzx edx, byte [rcx + rax]
+        // REX.W=0 para movzx 8→32
+        // 0F B6 14 01 = movzx edx, [rcx + rax] (SIB: base=rcx, index=rax, scale=1)
+        m_x86.text().emit_u8(0x0F);
+        m_x86.text().emit_u8(0xB6);
+        m_x86.modrm(0b00, 2, 4);  // mod=00, reg=edx(2), rm=SIB(4)
+        m_x86.sib(0, 0, 1);       // scale=1, index=rax(0), base=rcx(1)
+
+        // cmp dl, '0' (0x30)
+        // 80 FA 30
+        m_x86.text().emit_u8(0x80);
+        m_x86.text().emit_u8(0xFA);
+        m_x86.text().emit_u8(0x30);
+        size_t not_zero = m_x86.emit_jcc_rel32(cc::NE);
+
+        // buf[len-1] = '\0': mov byte [rcx + rax], 0
+        // C6 04 01 00
+        m_x86.text().emit_u8(0xC6);
+        m_x86.modrm(0b00, 0, 4);  // mod=00, reg=0, rm=SIB
+        m_x86.sib(0, 0, 1);       // index=rax, base=rcx
+        m_x86.text().emit_u8(0x00);
+
+        // rax ainda e len-1, loop de volta (sem incrementar, pois dec ja foi feito)
+        size_t back = m_x86.emit_jmp_rel32();
+        m_x86.patch_jump(back, trim_loop);
+
+        m_x86.patch_jump(not_zero, m_x86.pos());
+        // Restaurar rax = len (desfazer o dec, ja que nao cortamos este char)
+        m_x86.emit_inc_reg(RAX);
+
+        m_x86.patch_jump(trim_done, m_x86.pos());
+
+        // Trim '.': checar se buf[len-1] == '.'
+        m_x86.emit_test_reg_reg(RAX, RAX);
+        size_t skip_dot = m_x86.emit_jcc_rel32(cc::E);
+        m_x86.emit_dec_reg(RAX);
+        // movzx edx, byte [rcx + rax]
+        m_x86.text().emit_u8(0x0F);
+        m_x86.text().emit_u8(0xB6);
+        m_x86.modrm(0b00, 2, 4);
+        m_x86.sib(0, 0, 1);
+        // cmp dl, '.' (0x2E)
+        m_x86.text().emit_u8(0x80);
+        m_x86.text().emit_u8(0xFA);
+        m_x86.text().emit_u8(0x2E);
+        size_t not_dot = m_x86.emit_jcc_rel32(cc::NE);
+        // buf[len-1] = '\0'
+        m_x86.text().emit_u8(0xC6);
+        m_x86.modrm(0b00, 0, 4);
+        m_x86.sib(0, 0, 1);
+        m_x86.text().emit_u8(0x00);
+        m_x86.patch_jump(not_dot, m_x86.pos());
+        m_x86.patch_jump(skip_dot, m_x86.pos());
+
+        // printf("%s\n", buf) ou printf("%s", buf)
+        std::string fmt = has_newline ? "%s\n" : "%s";
+        m_x86.emit_lea_reg_rbp_offset(RDX, buf_off);
+        emit_lea_rdata(RCX, add_string_literal(fmt));
+        emit_extern_call("printf");
+    }
 
     // Verifica se uma expressao e uma chamada a funcao importada com retorno "string"
     bool is_lib_text_call(const Expr& expr) const {
@@ -822,14 +1099,58 @@ private:
                           e.args[0]->is<StringLiteralExpr>() ||
                           e.args[0]->is<InterpolatedStringExpr>() ||
                           is_lib_text_call(*e.args[0]));
+        bool is_float = (arg_type == VarType::Float ||
+                         e.args[0]->is<FloatLiteralExpr>());
 
+        // Prefixo Nf: forca formatacao float com N casas decimais
+        bool has_float_fmt = (e.float_precision >= 0);
+        // Interpolated strings ja aplicam float_precision internamente no sprintf,
+        // entao o print externo deve tratar como string
+        bool is_interp = e.args[0]->is<InterpolatedStringExpr>();
+        if (has_float_fmt && !is_interp) is_float = true;
+
+        // Propagar precisao para interpolated strings
+        int old_precision = m_float_precision;
+        if (has_float_fmt) m_float_precision = e.float_precision;
         gen_expr(*e.args[0]);
+        m_float_precision = old_precision;
 
-        if (is_string) {
+        if (is_string && (!has_float_fmt || is_interp)) {
             std::string fmt = has_newline ? "%s\n" : "%s";
             m_x86.emit_push(RAX);
             emit_lea_rdata(RCX, add_string_literal(fmt));
             m_x86.emit_pop(RDX);
+        } else if (is_float) {
+            // RAX contem bits IEEE 754 do double, ou um inteiro que precisa ser convertido.
+            if (arg_type != VarType::Float && !e.args[0]->is<FloatLiteralExpr>()) {
+                bool expr_produced_float = (has_float_fmt && e.args[0]->is<BinaryExpr>());
+                if (!expr_produced_float) {
+                    m_x86.emit_cvtsi2sd_xmm_reg(xmm::XMM0, RAX);
+                    m_x86.emit_movq_reg_xmm(RAX, xmm::XMM0);
+                }
+            }
+
+            if (has_float_fmt) {
+                // Formato explicito Nf: — usar printf direto com %.Nf
+                std::string fmt = "%." + std::to_string(e.float_precision) + "f";
+                if (has_newline) fmt += "\n";
+                m_x86.emit_mov_reg_reg(RDX, RAX);
+                m_x86.emit_movq_xmm_reg(xmm::XMM1, RAX);
+                emit_lea_rdata(RCX, add_string_literal(fmt));
+            } else {
+                // Formato padrao: sprintf com %.6f, depois trim zeros
+                emit_float_smart_print(RAX, has_newline && !has_color);
+                // Emitir sufixo de cor (reset) se necessario
+                if (has_color) {
+                    emit_lea_rdata(RCX, add_string_literal(color_suffix));
+                    emit_extern_call("printf");
+                    if (has_newline) {
+                        emit_lea_rdata(RCX, add_string_literal("\n"));
+                        emit_extern_call("printf");
+                    }
+                }
+                return;
+            }
         } else {
             std::string fmt = has_newline ? "%lld\n" : "%lld";
             m_x86.emit_mov_reg_reg(RDX, RAX);
@@ -855,32 +1176,68 @@ private:
         auto& name = e.target->as<IdentifierExpr>().name;
         auto* var = m_scope.find_var(name);
         if (!var) {
+            VarType vt = m_scope.infer_expr_type(*e.value);
             gen_expr(*e.value);
-            auto& new_var = m_scope.declare_var(name);
+            auto& new_var = m_scope.declare_var(name, false, vt);
             m_x86.emit_mov_rbp_offset_reg(new_var.stack_offset, RAX);
             return;
         }
 
         if (e.op == TokenType::Assign) {
+            VarType vt = m_scope.infer_expr_type(*e.value);
             gen_expr(*e.value);
+            if (vt != VarType::Unknown) var->type = vt;
             m_x86.emit_mov_rbp_offset_reg(var->stack_offset, RAX);
         } else {
+            bool is_float = (var->type == VarType::Float);
+
+            // /= sempre produz float (estilo Python 3)
+            if (e.op == TokenType::SlashAssign) is_float = true;
+
             m_x86.emit_mov_reg_rbp_offset(RAX, var->stack_offset);
             m_x86.emit_push(RAX);
             gen_expr(*e.value);
-            m_x86.emit_mov_reg_reg(RCX, RAX);
-            m_x86.emit_pop(RAX);
+            VarType val_type = m_scope.infer_expr_type(*e.value);
+            if (val_type == VarType::Float) is_float = true;
 
-            switch (e.op) {
-                case TokenType::PlusAssign:    m_x86.emit_add_reg_reg(RAX, RCX); break;
-                case TokenType::MinusAssign:   m_x86.emit_sub_reg_reg(RAX, RCX); break;
-                case TokenType::StarAssign:    m_x86.emit_imul_reg_reg(RAX, RCX); break;
-                case TokenType::SlashAssign:   m_x86.emit_cqo(); m_x86.emit_idiv_reg(RCX); break;
-                case TokenType::PercentAssign:
-                    m_x86.emit_cqo(); m_x86.emit_idiv_reg(RCX);
-                    m_x86.emit_mov_reg_reg(RAX, RDX);
-                    break;
-                default: break;
+            if (is_float) {
+                // RAX = valor direito, stack top = valor esquerdo (var)
+                emit_load_xmm_from_rax(xmm::XMM1, val_type);
+                m_x86.emit_pop(RAX);
+                emit_load_xmm_from_rax(xmm::XMM0, var->type);
+
+                switch (e.op) {
+                    case TokenType::PlusAssign:    m_x86.emit_addsd_xmm_xmm(xmm::XMM0, xmm::XMM1); break;
+                    case TokenType::MinusAssign:   m_x86.emit_subsd_xmm_xmm(xmm::XMM0, xmm::XMM1); break;
+                    case TokenType::StarAssign:    m_x86.emit_mulsd_xmm_xmm(xmm::XMM0, xmm::XMM1); break;
+                    case TokenType::SlashAssign:   m_x86.emit_divsd_xmm_xmm(xmm::XMM0, xmm::XMM1); break;
+                    case TokenType::PercentAssign: {
+                        m_x86.emit_movsd_xmm_xmm(xmm::XMM2, xmm::XMM0);
+                        m_x86.emit_divsd_xmm_xmm(xmm::XMM2, xmm::XMM1);
+                        m_x86.emit_cvttsd2si_reg_xmm(RAX, xmm::XMM2);
+                        m_x86.emit_cvtsi2sd_xmm_reg(xmm::XMM2, RAX);
+                        m_x86.emit_mulsd_xmm_xmm(xmm::XMM2, xmm::XMM1);
+                        m_x86.emit_subsd_xmm_xmm(xmm::XMM0, xmm::XMM2);
+                        break;
+                    }
+                    default: break;
+                }
+                m_x86.emit_movq_reg_xmm(RAX, xmm::XMM0);
+                var->type = VarType::Float;
+            } else {
+                m_x86.emit_mov_reg_reg(RCX, RAX);
+                m_x86.emit_pop(RAX);
+
+                switch (e.op) {
+                    case TokenType::PlusAssign:    m_x86.emit_add_reg_reg(RAX, RCX); break;
+                    case TokenType::MinusAssign:   m_x86.emit_sub_reg_reg(RAX, RCX); break;
+                    case TokenType::StarAssign:    m_x86.emit_imul_reg_reg(RAX, RCX); break;
+                    case TokenType::PercentAssign:
+                        m_x86.emit_cqo(); m_x86.emit_idiv_reg(RCX);
+                        m_x86.emit_mov_reg_reg(RAX, RDX);
+                        break;
+                    default: break;
+                }
             }
             m_x86.emit_mov_rbp_offset_reg(var->stack_offset, RAX);
         }
@@ -909,7 +1266,16 @@ private:
                 }
             } else {
                 VarType vt = m_scope.infer_expr_type(part);
-                fmt += (vt == VarType::String) ? "%s" : "%lld";
+                if (vt == VarType::String) {
+                    fmt += "%s";
+                } else if (vt == VarType::Float || (m_float_precision >= 0 && vt != VarType::String)) {
+                    if (m_float_precision >= 0)
+                        fmt += "%." + std::to_string(m_float_precision) + "f";
+                    else
+                        fmt += "%.6g";
+                } else {
+                    fmt += "%lld";
+                }
                 expr_indices.push_back(i);
             }
         }
@@ -918,8 +1284,20 @@ private:
         size_t nexprs = expr_indices.size();
         int32_t args_base = m_scope.reserve_stack(static_cast<int32_t>(nexprs * 8));
 
+        // Guardar tipos dos args para saber quais precisam de XMM (varargs ABI)
+        std::vector<VarType> expr_types;
+        for (size_t i = 0; i < nexprs; i++) {
+            expr_types.push_back(m_scope.infer_expr_type(*e.parts[expr_indices[i]]));
+        }
+
         for (size_t i = 0; i < nexprs; i++) {
             gen_expr(*e.parts[expr_indices[i]]);
+            // Se float_precision ativo e tipo e int, converter para double (bits IEEE 754)
+            if (m_float_precision >= 0 && expr_types[i] != VarType::Float && expr_types[i] != VarType::String) {
+                m_x86.emit_cvtsi2sd_xmm_reg(xmm::XMM0, RAX);
+                m_x86.emit_movq_reg_xmm(RAX, xmm::XMM0);
+                expr_types[i] = VarType::Float; // atualizar tipo para XMM handling
+            }
             m_x86.emit_mov_rbp_offset_reg(args_base + static_cast<int32_t>(i * 8), RAX);
         }
 
@@ -941,8 +1319,16 @@ private:
 
             // R8 = a0, R9 = a1
             m_x86.emit_mov_reg_rbp_offset(R8, args_base);
+            // Windows varargs: float em R8 tambem precisa estar em XMM2
+            if (nexprs >= 1 && expr_types[0] == VarType::Float) {
+                m_x86.emit_movq_xmm_reg(xmm::XMM2, R8);
+            }
             if (nexprs >= 2) {
                 m_x86.emit_mov_reg_rbp_offset(R9, args_base + 8);
+                // Windows varargs: float em R9 tambem precisa estar em XMM3
+                if (expr_types[1] == VarType::Float) {
+                    m_x86.emit_movq_xmm_reg(xmm::XMM3, R9);
+                }
             }
 
             emit_lea_rdata(RDX, add_string_literal(fmt));
@@ -952,9 +1338,18 @@ private:
         } else {
             if (nexprs == 2) {
                 m_x86.emit_mov_reg_rbp_offset(R9, args_base + 8);
+                if (expr_types[1] == VarType::Float) {
+                    m_x86.emit_movq_xmm_reg(xmm::XMM3, R9);
+                }
                 m_x86.emit_mov_reg_rbp_offset(R8, args_base);
+                if (expr_types[0] == VarType::Float) {
+                    m_x86.emit_movq_xmm_reg(xmm::XMM2, R8);
+                }
             } else if (nexprs == 1) {
                 m_x86.emit_mov_reg_rbp_offset(R8, args_base);
+                if (expr_types[0] == VarType::Float) {
+                    m_x86.emit_movq_xmm_reg(xmm::XMM2, R8);
+                }
             }
 
             emit_lea_rdata(RDX, add_string_literal(fmt));

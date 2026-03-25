@@ -1169,6 +1169,19 @@ private:
         ce.callee = std::move(callee);
 
         if (!check(TokenType::RightParen)) {
+            // Detectar prefixo de formato float: Nf: (ex: 2f:, 4f:)
+            // Tokens: IntLiteral("N") Identifier("f") Colon
+            if (check(TokenType::IntLiteral) &&
+                peek_token(1).is(TokenType::Identifier) &&
+                peek_token(1).value == "f" &&
+                peek_token(2).is(TokenType::Colon)) {
+                ce.float_precision = std::stoi(current().value);
+                advance_token(); // IntLiteral
+                advance_token(); // Identifier("f")
+                advance_token(); // Colon
+                skip_newlines();
+            }
+
             do {
                 skip_newlines();
                 // Check for named argument: name=value

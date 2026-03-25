@@ -1,0 +1,48 @@
+# float_formatting.at
+# Demonstrates float arithmetic and formatting in Atomic
+
+# Basic float assignment
+pi = 3.14159265
+radius = 5.0
+
+# Float arithmetic
+area = pi * radius * radius
+circumference = 2.0 * pi * radius
+
+print("--- Circle calculations ---")
+print("Area: {area}")
+print("Circumference: {circumference}")
+
+# Formatting with Nf: prefix
+print(2f: area)
+print(4f: pi)
+print(0f: area)
+
+# Formatting inside interpolated strings
+print(2f: "Area = {area}, Circumference = {circumference}")
+
+# Division always produces float (Python 3 style)
+a = 10
+b = 3
+print("10 / 3 = {a / b}")
+print(2f: a / b)
+
+# Exact division trims trailing zeros
+print("10 / 2 = {a / 2}")
+
+# Mixed int and float operations
+price = 19.99
+quantity = 3
+total = price * quantity
+print(2f: "Total: {total}")
+
+# Compound assignment with floats
+balance = 100.0
+balance += 49.99
+balance -= 10.0
+print(2f: "Balance: {balance}")
+
+# Temperature conversion (Celsius to Fahrenheit)
+celsius = 36.6
+fahrenheit = celsius * 9 / 5 + 32
+print(1f: "{celsius}C = {fahrenheit}F")

@@ -1,4 +1,4 @@
-# print_en.at
+# print.at
 # Examples of print, strings, and interpolation
 
 # Simple print
@@ -7,15 +7,15 @@ print("Atomic Language v0.1")
 
 # String variables
 name = "Atomic"
-versao = "0.1"
-print(nome)
-print(versao)
+version = "0.1"
+print(name)
+print(version)
 
 # Simple interpolation (1 expression)
 print("Language: {name}")
 
 # Interpolation with 2 expressions
-print("{name} v{versao}")
+print("{name} v{version}")
 
 # Interpolation with arithmetic expressions
 x = 42

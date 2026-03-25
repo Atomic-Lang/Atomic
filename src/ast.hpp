@@ -73,6 +73,7 @@ struct CallExpr {
     ExprPtr callee;
     std::vector<ExprPtr> args;
     std::vector<std::pair<std::string, ExprPtr>> named_args;
+    int float_precision = -1; // -1 = sem formato, >= 0 = casas decimais (ex: 2f:)
 };
 
 struct IndexExpr {
